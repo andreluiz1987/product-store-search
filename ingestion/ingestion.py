@@ -10,15 +10,6 @@ def get_client_es():
     )
 
 
-def insert_data(movies):
-    for movie in movies:
-        sentences = [movie["description"]]
-        embeddings = get_text_vector_model_msmarco(sentences)
-        movie["description_vector"] = embeddings[0]
-        print(f'Last movies processed {movie["title"]}')
-        get_client_es().index(index="idx_movies_vector", body=movie, refresh="wait_for")
-
-
 def get_text_vector(sentences):
     model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
     embeddings = model.encode(sentences)

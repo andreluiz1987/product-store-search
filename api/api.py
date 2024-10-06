@@ -6,7 +6,7 @@ from sentence_transformers import SentenceTransformer
 app = Flask(__name__)
 CORS(app)
 
-promote_products_free_gluten = ["HryOV5IBcEU5Aj1dkOQa", "j7yOV5IBcEU5Aj1dkORG", "WbyOV5IBcEU5Aj1dkOQa"]
+promote_products_free_gluten = ["1043", "1042", "1039"]
 
 
 def get_client_es():
@@ -173,7 +173,7 @@ def search():
     hybrid = request.args.get('hybrid', 'False').lower() == 'true'
     results = search_products(query, categories=categories, product_types=product_types,
                               brands=brands,
-                              promote_products=[],
+                              promote_products=promote_products_free_gluten,
                               hybrid=hybrid)
     return jsonify(results)
 
