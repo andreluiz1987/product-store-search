@@ -38,9 +38,11 @@ def chunk_data(data, batch_size):
 
 def generate_bulk_actions(index_name, data_batch):
     for item in data_batch:
+        document_id = item['id']
         item['description_embeddings'] = get_text_vector(item['description'])
         yield {
             "_index": index_name,
+            "_id": document_id,
             "_source": item
         }
 

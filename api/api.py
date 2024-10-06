@@ -1,6 +1,7 @@
 from elasticsearch import Elasticsearch
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from sentence_transformers import SentenceTransformer
 
 app = Flask(__name__)
 CORS(app)
@@ -12,6 +13,12 @@ def get_client_es():
     return Elasticsearch(
         hosts=[{'host': 'localhost', 'port': 9200, "scheme": "http"}]
     )
+
+
+def get_text_vector(sentences):
+    model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+    embeddings = model.encode(sentences)
+    return embeddings
 
 
 def build_query(term=None, categories=None, product_types=None, brands=None):
@@ -41,26 +48,84 @@ def build_query(term=None, categories=None, product_types=None, brands=None):
     }
 
 
-def search_products(term, categories=None, product_types=None, brands=None, promote_products=[]):
+def build_hybrid_query(term=None, categories=None, product_types=None, brands=None, hybrid=False):
+    # Query padrão
     organic_query = build_query(term, categories, product_types, brands)
 
-    if promote_products:
+    if hybrid is True and term:
+
+        vector = get_text_vector([term])[0]
+
+        # Query híbrida com RRF (Reciprocal Rank Fusion)
         query = {
-            "query": {
-                "pinned": {
-                    "ids": promote_products,
-                    "organic": organic_query['query']
+            "retriever": {
+                "rrf": {
+                    "retrievers": [
+                        {
+                            "standard": {
+                                "query": organic_query['query']
+                            }
+                        },
+                        {
+                            "knn": {
+                                "field": "description_embeddings",
+                                "query_vector": vector,
+                                "k": 5,
+                                "num_candidates": 20,
+                                "filter": {
+                                    "bool": {
+                                        "filter": []
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "rank_window_size": 20,
+                    "rank_constant": 5
                 }
             },
             "_source": organic_query['_source']
         }
+
+        if categories:
+            query['retriever']['rrf']['retrievers'][1]['knn']['filter']['bool']['filter'].append({
+                "terms": {"category": categories}
+            })
+        if product_types:
+            query['retriever']['rrf']['retrievers'][1]['knn']['filter']['bool']['filter'].append({
+                "terms": {"product_type": product_types}
+            })
+        if brands:
+            query['retriever']['rrf']['retrievers'][1]['knn']['filter']['bool']['filter'].append({
+                "terms": {"brand.keyword": brands}
+            })
     else:
         query = organic_query
 
+    return query
+
+
+def search_products(term, categories=None, product_types=None, brands=None, promote_products=[], hybrid=False):
+    query = build_hybrid_query(term, categories, product_types, brands, hybrid)
+
+    if promote_products and not hybrid:
+        query = {
+            "query": {
+                "pinned": {
+                    "ids": promote_products,
+                    "organic": query['query']
+                }
+            },
+            "_source": query['_source']
+        }
+
     response = get_client_es().search(index="products-catalog", body=query, size=20)
 
-    return [
-        {
+    results = []
+    for hit in response['hits']['hits']:
+        print(f"Product Name: {hit['_source']['name']}, Score: {hit['_score']}")
+
+        results.append({
             "id": hit['_source']['id'],
             "brand": hit['_source']['brand'],
             "name": hit['_source']['name'],
@@ -69,9 +134,9 @@ def search_products(term, categories=None, product_types=None, brands=None, prom
             "image_link": hit['_source']['image_link'],
             "category": hit['_source']['category'],
             "tags": hit['_source'].get('tag_list', [])
-        }
-        for hit in response['hits']['hits']
-    ]
+        })
+
+    return results
 
 
 def get_facets_data(term, categories=None, product_types=None, brands=None):
@@ -105,9 +170,11 @@ def search():
     categories = request.args.getlist('selectedCategories[]')
     product_types = request.args.getlist('selectedProductTypes[]')
     brands = request.args.getlist('selectedbrands[]')
+    hybrid = request.args.get('hybrid', 'False').lower() == 'true'
     results = search_products(query, categories=categories, product_types=product_types,
                               brands=brands,
-                              promote_products=[])
+                              promote_products=[],
+                              hybrid=hybrid)
     return jsonify(results)
 
 
