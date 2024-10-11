@@ -1,12 +1,16 @@
 import json
 
+import yaml
 from elasticsearch import Elasticsearch, helpers
 from sentence_transformers import SentenceTransformer
 
 
 def get_client_es():
+    with open('../config.yml', 'r') as file:
+        config = yaml.safe_load(file)
     return Elasticsearch(
-        hosts=[{'host': 'localhost', 'port': 9200, "scheme": "http"}]
+        cloud_id=config['cloud_id'],
+        api_key=config['api_key']
     )
 
 

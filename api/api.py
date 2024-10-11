@@ -1,3 +1,4 @@
+import yaml
 from elasticsearch import Elasticsearch
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -10,8 +11,11 @@ promote_products_free_gluten = ["1043", "1042", "1039"]
 
 
 def get_client_es():
+    with open('../config.yml', 'r') as file:
+        config = yaml.safe_load(file)
     return Elasticsearch(
-        hosts=[{'host': 'localhost', 'port': 9200, "scheme": "http"}]
+        cloud_id=config['cloud_id'],
+        api_key=config['api_key']
     )
 
 
@@ -173,7 +177,7 @@ def search():
     hybrid = request.args.get('hybrid', 'False').lower() == 'true'
     results = search_products(query, categories=categories, product_types=product_types,
                               brands=brands,
-                              promote_products=promote_products_free_gluten,
+                              promote_products=[],
                               hybrid=hybrid)
     return jsonify(results)
 
@@ -184,7 +188,8 @@ def facets():
     categories = request.args.getlist('selectedCategories[]')
     product_types = request.args.getlist('selectedProductTypes[]')
     brands = request.args.getlist('selectedbrands[]')
-    results = get_facets_data(query, categories=categories, product_types=product_types,
+    results = get_facets_data(query, categories=categories,
+                              product_types=product_types,
                               brands=brands)
     return jsonify(results)
 
