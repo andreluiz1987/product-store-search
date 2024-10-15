@@ -123,6 +123,7 @@ def search_products(term, categories=None, product_types=None, brands=None, prom
             "_source": query['_source']
         }
 
+    print(query)
     response = get_client_es().search(index="products-catalog", body=query, size=20)
 
     results = []
@@ -177,7 +178,7 @@ def search():
     hybrid = request.args.get('hybrid', 'False').lower() == 'true'
     results = search_products(query, categories=categories, product_types=product_types,
                               brands=brands,
-                              promote_products=[],
+                              promote_products=promote_products_free_gluten,
                               hybrid=hybrid)
     return jsonify(results)
 
